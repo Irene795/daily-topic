@@ -1,0 +1,12 @@
+{
+  "name": "daily-topic",
+  "version": "1.0.0",
+  "description": "高研新知每日选题自动抓取",
+  "main": "daily-topic.js",
+  "scripts": {
+    "start": "node daily-topic.js"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}
