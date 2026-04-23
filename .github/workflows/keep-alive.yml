@@ -1,0 +1,24 @@
+name: Keep Alive
+
+on:
+  schedule:
+    # 每周一 UTC 02:00 运行
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Keep repository active
+        run: |
+          echo "Keep alive ping at $(date)"
+          # 创建一个空提交来保持活跃
+          git config user.email "459983872@qq.com"
+          git config user.name "Irene795"
+          git commit --allow-empty -m "Keep alive - $(date +'%Y-%m-%d')" || echo "No commit needed"
+          git push || echo "Push skipped"
