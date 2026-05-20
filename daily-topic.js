@@ -1,4 +1,3 @@
-const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 
@@ -14,400 +13,241 @@ const dateStr = today.toISOString().split('T')[0];
 const fileName = `选题-${dateStr}.txt`;
 const filePath = path.join(saveDir, fileName);
 
-async function scrapeWeiboHot() {
-  console.log('启动浏览器...');
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+// 备选选题库（大幅扩充）
+const psychologyPool = [
+  // 基础认知类
+  '习得性无助：客户"放弃抵抗"的背后，如何帮他重建信心？',
+  '锚定效应：报价技巧——让客户觉得"划算"的心理学',
+  '确认偏误：客户只看支持自己观点的信息，如何破局？',
+  '沉没成本：客户"不舍得"退掉不好的产品怎么办？',
+  '认知失调：客户买了之后为什么会有"后悔感"？',
+  '乐观偏差：客户为什么觉得"坏事不会发生在自己身上"？',
+  '自我服务偏差：客户为什么把成功归自己，失败归外部？',
+  '归因错误：客户为什么误解你的意图？',
 
-  let hotList = [];
+  // 决策影响类
+  '互惠原理：为什么"先付出"能换来信任？',
+  '社会认同：客户为什么更容易相信"别人也买了"？',
+  '权威效应：如何用专业身份建立信任？',
+  '稀缺性原理：为什么"限时"能推动决策？',
+  '后悔预期：客户为什么迟迟不签单？',
+  '选择悖论：给客户太多选择，反而让他不敢决定？',
+  '决策疲劳：为什么客户越聊越不想决定？',
+  '默认效应：如何用"默认选项"引导客户？',
 
-  try {
-    const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  // 记忆印象类
+  '峰终定律：客户对服务的印象，取决于"峰值"和"终点"',
+  '首因效应：第一次见面，如何让客户记住你？',
+  '近因效应：最后一次沟通，决定了客户的印象',
+  '自我参照效应：为什么客户更关心"跟我有关"的事？',
+  '闪光灯记忆：关键时刻，客户会记得什么？',
+  '遗忘曲线：如何让客户不忘记你说的话？',
 
-    console.log('访问微博热搜页面...');
-    await page.goto('https://s.weibo.com/top/summary', {
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    });
+  // 思维习惯类
+  '启发式判断：客户为什么凭"直觉"做决定？',
+  '心理账户：客户为什么对不同钱有不同态度？',
+  '参照点效应：客户的"心理价位"从哪来？',
+  '禀赋效应：客户为什么觉得自己的东西更值钱？',
+  '现状偏见：客户为什么不愿意改变现状？',
+  '舒适区效应：客户为什么害怕改变？',
 
-    console.log('等待页面加载...');
-    await page.waitForSelector('#pl_top_realtimehot', { timeout: 15000 }).catch(() => {});
+  // 情绪心理类
+  '镜像神经元：同理心是天赋还是可以练习的能力？',
+  '情绪传染：你的情绪，如何影响客户的决定？',
+  '恐惧 appeals：如何适度使用"恐惧"推动决策？',
+  '希望效应：为什么"希望"能改变客户的行为？',
+  '羞耻心理：客户为什么不愿意承认自己的问题？',
+  '焦虑心理：如何缓解客户的焦虑而非制造焦虑？',
 
-    hotList = await page.evaluate(() => {
-      const selectors = [
-        '#pl_top_realtimehot table tbody tr',
-        '.list-a table tbody tr',
-        '#pl_top_realtimehot .td-02 a',
-        '.data table tbody tr'
-      ];
+  // 关系心理类
+  '喜欢原则：客户为什么会"喜欢"你？',
+  '相似效应：为什么"相似"能拉近关系？',
+  '接触效应：多见面，客户会更信任你吗？',
+  '关联效应：客户会把你和什么联系起来？',
+  '友谊效应：朋友与客户的边界在哪里？',
 
-      let items = [];
+  // 动机心理类
+  '自我效能感：客户相信自己能做到吗？',
+  '目标梯度效应：离目标越近，客户越有动力？',
+  '反馈效应：及时反馈，如何推动客户行动？',
+  '承诺一致性：客户说出的话，会变成行动吗？',
+  '内在动机 vs 外在动机：什么真正驱动客户？',
 
-      for (const selector of selectors) {
-        const elements = document.querySelectorAll(selector);
-        if (elements.length > 0) {
-          elements.forEach((el, index) => {
-            const link = el.querySelector('a');
-            const rankEl = el.querySelector('.td-01');
-            const hotEl = el.querySelector('.td-02 span') || el.querySelector('span');
+  // 风险心理类
+  '风险感知：客户眼中的风险，和你不一样？',
+  '概率忽视：客户为什么忽略小概率大风险？',
+  '控制错觉：客户为什么觉得自己能掌控风险？',
+  '预防动机 vs 促进动机：不同客户需要不同沟通方式？',
+  '灾难化思维：客户为什么把风险想得太可怕？',
 
-            if (link && link.textContent.trim()) {
-              const title = link.textContent.trim();
-              const href = link.href;
-              const rank = rankEl ? rankEl.textContent.trim() : (index + 1).toString();
-              const hot = hotEl ? hotEl.textContent.trim() : '';
+  // 其他
+  '熵增定律：为什么客户的生活越来越乱，保障越来越重要？',
+  '破冰效应：如何打破和陌生客户的隔阂？'
+];
 
-              if (title && !title.includes('首页') && rank !== '•') {
-                items.push({
-                  rank: parseInt(rank) || index + 1,
-                  title: title,
-                  hot: hot,
-                  url: href
-                });
-              }
-            }
-          });
-          break;
-        }
-      }
+const socialPool = [
+  // 家庭结构变化
+  '老龄化焦虑：如何和客户聊"养老"而不让他抗拒？',
+  '中年危机：40岁客户的真实担忧是什么？',
+  '教育焦虑：父母为孩子买保险背后的心理',
+  '二孩家庭：多子女家庭的保障优先级怎么排？',
+  '离婚率上升：婚姻变动后的保障如何调整？',
+  '独生子女困境：一个人的养老压力有多大？',
+  '空巢老人：子女不在身边，保障如何规划？',
+  '晚婚趋势：30岁未婚客户的保障需求？',
 
-      return items.filter(item => item.rank > 0).sort((a, b) => a.rank - b.rank);
-    });
+  // 经济压力类
+  '财务焦虑：中产家庭的隐形压力',
+  '房贷焦虑：房子买了，保障缺口在哪？',
+  '职场焦虑：不稳定工作带来的保障需求',
+  '创业焦虑：创业者没有社保，怎么办？',
+  '降薪焦虑：收入下降后保障怎么调整？',
+  '通胀焦虑：钱越来越不值钱，怎么规划？',
+  '负债焦虑：有负债的客户如何做保障？',
 
-  } catch (error) {
-    console.error('抓取错误:', error.message);
-  } finally {
-    await browser.close();
-  }
+  // 健康焦虑类
+  '健康焦虑：体检报告引发的保险意识',
+  '医疗焦虑：一场病要花多少钱？',
+  '康复焦虑：生病后还能买保险吗？',
+  '遗传焦虑：家族病史客户如何规划？',
+  '亚健康焦虑：年轻人的健康隐患？',
+  '老年病焦虑：父母健康恶化怎么办？',
 
-  return hotList;
-}
+  // 人生阶段类
+  '婚姻焦虑：婚前保障规划怎么聊？',
+  '育儿焦虑：新手父母的安全感需求',
+  '升学焦虑：孩子教育金怎么准备？',
+  '留学焦虑：送孩子出国，保障怎么配？',
+  '退休焦虑：60岁还能买什么保险？',
+  '退休规划：客户什么时候开始想退休？',
 
-function analyzeTopicValue(hotList) {
-  const highValueKeywords = [
-    '心理', '认知', '偏见', '效应', '行为', '决策', '信任', '焦虑',
-    '恐惧', '压力', '习惯', '动机', '人性', '人际', '沟通', '关系',
-    '孤独', '抑郁', '情绪', '思维', '惯性', '投射', '共情', '镜像',
-    '损失厌恶', '沉没成本', '锚定', '破窗', '鸟笼', '巴纳姆', '习得性',
-    '选择', '后悔', '预期', '满足', '幸福'
-  ];
+  // 代际关系类
+  '代际养老：独生子女的养老困境',
+  '父母养老：如何帮父母做养老规划？',
+  '子女保障：如何给孩子做长期规划？',
+  '家庭责任：一家之主的保障缺口在哪？',
+  '三代同堂：大家庭的保障如何统筹？',
 
-  const socialKeywords = [
-    '老龄化', '独居', '婚姻', '家庭', '子女', '教育', '就业', '职业', '退休',
-    '健康', '医疗', '养老', '理财', '消费', '投资', '房产', '经济', '收入',
-    '中年', '青年', '老年', '父母', '孩子', '传承', '遗产', '保障',
-    '储蓄', '负债', '财务', '风险', '安全感'
-  ];
+  // 社会趋势类
+  '延迟退休：退休延迟对保障规划的影响',
+  '医保改革：医保变化后需要什么补充？',
+  '消费降级：客户花钱更谨慎，怎么聊保障？',
+  '灵活就业：自由职业者的保障缺口',
+  '远程办公：工作方式变化带来的新需求',
 
-  const newsValueKeywords = [
-    '研究', '调查', '报告', '数据', '发现', '趋势', '分析',
-    '政策', '新规', '改革', '调整', '专家', '学者'
-  ];
+  // 人口趋势类
+  '少子化趋势：独生子女家庭的保障重点',
+  '老龄化加速：养老保障越来越紧迫',
+  '城市化进程：城市新移民的保障需求',
 
-  const alreadyWrittenKeywords = [
-    '同理心', '共情', '情感账户', '心理投射', '乐观偏差', '破窗效应',
-    '鸟笼效应', '巴纳姆效应', '损失厌恶', '损失', '收益',
-    '取舍', '选择越多', '说服力', '人格魅力', '框架效应',
-    '独居', '孤独经济', '数字游民', '财务斩杀线',
-    '耐心资本', '情价比', '正念', '情绪绑架', '信息差',
-    '客户画像', '读空气', '沟通最高境界', '语言', '输出',
-    '输入', '慢下来', '烟火气', '爱在当下', '3秒停顿',
-    '张雪峰', '明星配音', '山姆', '外卖商战'
-  ];
+  // 消费观念类
+  '理性消费：客户如何理性看待保险支出？',
+  '品牌意识：客户为什么在乎保险公司品牌？',
+  '性价比思维：客户如何衡量保险的价值？'
+];
 
-  const excludeKeywords = [
-    '明星', '恋情', '分手', '绯闻', '综艺', '偶像', '粉丝', '追星',
-    '出轨', '丑闻', '八卦', '吃瓜', '塌房', '翻车', '吐槽', '骂',
-    '结婚', '离婚', '官宣', '恋爱', '男友', '女友', '老公', '老婆',
-    '演员', '歌手', '艺人', '导演', '主持人', '网红', '博主',
-    '剧集', '电影', '综艺', '演出', '演唱会', '首映', '开机', '杀青',
-    '肖战', '李现', '杨紫', '沈月', '边伯贤', '谢娜', '张杰', '孟子义',
-    '浪姐', '十日终焉', '种地吧', '楚乔传', '胡先煦', '毛晓慧', '李晟',
-    '金子涵', '马頔', '李纯', '樊振东', '黄子韬', '罗永浩', '张维伊',
-    '造型', '照片', '拍立得', '大波浪', '红唇', '化妆', '穿搭',
-    '体重', '减肥', '健身', '身材', '颜值',
-    '习近平', '会见', '外交', '蓝皮书', '降级', '中方回应', '伊朗',
-    '巴基斯坦', '美国男子', '美方', '迫害', '学生学者', '最高领袖', '声明',
-    '泄密', '闭门', '沟通会', '销量', '华为', '苹果', '奥迪', '奔驰',
-    '小米', '冰激凌', '冰淇淋', '食堂',
-    '男子', '女子', '丈夫', '妻子', '杀害', '骗保', '溺水',
-    '举报', '涉黄', '浴场', '技师', '猥亵', '眼科', '院长'
-  ];
+const careerPool = [
+  // 基础能力类
+  '复盘能力：如何从每次面谈中学到东西？',
+  '抗挫折力：业绩低谷时如何调整心态？',
+  '时间管理：高效顾问的一天怎么安排？',
+  '学习曲线：新顾问如何快速成长？',
+  '专注力：如何在一个领域深耕？',
+  '执行力：想法到行动的距离怎么缩短？',
+  '自律力：如何保持每天的行动量？',
 
-  const analysis = {
-    hotTopics: [],
-    highValueTopics: [],
-    socialTopics: [],
-    newsTopics: [],
-    recommended: []
-  };
+  // 沟通能力类
+  '提问能力：好问题比好答案更重要',
+  '倾听能力：真正听见客户说什么',
+  '故事力：如何用故事打动客户？',
+  '谈判能力：如何在僵局中找到突破口？',
+  '说服力：如何让客户从"考虑"到"决定"？',
+  '异议处理：客户说"太贵"怎么回应？',
+  '沉默技巧：什么时候该让客户自己想？',
+  '反馈技巧：如何给客户有效的反馈？',
 
-  hotList.forEach(item => {
-    const title = item.title;
-    const shouldExclude = excludeKeywords.some(k => title.includes(k));
-    const alreadyWritten = alreadyWrittenKeywords.some(k => title.includes(k));
+  // 关系经营类
+  '人脉经营：转介绍从哪里来？',
+  '客户维护：签单后如何保持联系？',
+  '信任建立：客户为什么不信任你？',
+  '第一印象：见面前客户已经在判断你？',
+  '长期关系：如何让客户十年后还找你？',
+  '人情边界：人情和业务的平衡点在哪？',
 
-    if (shouldExclude) return;
-    if (alreadyWritten) return;
+  // 自我成长类
+  '自我激励：如何保持长期热情？',
+  '心态调整：被拒绝后如何快速恢复？',
+  '目标设定：如何设定可达成的业绩目标？',
+  '习惯养成：哪些习惯能带来持续业绩？',
+  '认知升级：如何突破自己的思维瓶颈？',
 
-    const hasHighValue = highValueKeywords.some(k => title.includes(k));
-    const hasSocial = socialKeywords.some(k => title.includes(k));
-    const hasNewsValue = newsValueKeywords.some(k => title.includes(k));
+  // 专业提升类
+  '产品理解：如何真正懂一个产品？',
+  '需求分析：如何发现客户的真实需求？',
+  '方案设计：如何设计让客户满意的方案？',
+  '理赔知识：如何用理赔案例建立信任？',
+  '法规知识：哪些法规客户会关心？',
+  '医学常识：如何读懂体检报告？',
 
-    if (hasHighValue) {
-      analysis.highValueTopics.push(item);
-    }
-    if (hasSocial && !hasHighValue) {
-      analysis.socialTopics.push(item);
-    }
-    if (hasNewsValue && item.hot && parseInt(item.hot) > 50000) {
-      analysis.newsTopics.push(item);
-    }
-    if (item.rank <= 30 && !shouldExclude && !alreadyWritten) {
-      analysis.hotTopics.push(item);
-    }
-  });
+  // 团队协作类
+  '团队协作：如何和团队一起成长？',
+  '师徒关系：如何找到好的带路人？',
+  '分享精神：如何分享而不失去客户？',
+  '竞争心态：如何看待同行竞争？',
 
-  analysis.recommended = [
-    ...analysis.highValueTopics.slice(0, 4),
-    ...analysis.socialTopics.slice(0, 3),
-    ...analysis.newsTopics.slice(0, 2)
-  ].slice(0, 6);
+  // 其他
+  '职业倦怠：如何走出"不想干了"的状态？',
+  '长期主义：如何在保险行业坚持十年？',
+  '初心回顾：为什么你选择做保险？'
+];
 
-  return analysis;
-}
-
-function generateReport(hotList, analysis) {
-  const report = [];
-
-  report.push('='.repeat(60));
-  report.push(`高研新知每日选题报告 - ${dateStr}`);
-  report.push('='.repeat(60));
-  report.push('');
-
-  report.push('【今日推荐选题】（有新知解读价值）');
-  report.push('-'.repeat(40));
-  if (analysis.recommended.length > 0) {
-    analysis.recommended.forEach((item, i) => {
-      report.push(`${i + 1}. ${item.title}`);
-      report.push(`   热度: ${item.hot || '未知'} | 排名: ${item.rank}`);
-      report.push(`   链接: ${item.url}`);
-      report.push('');
-    });
-  } else {
-    report.push('今日热搜无合适选题，建议使用备选选题库');
-    report.push('');
-  }
-
-  report.push('【心理学/认知科学选题】');
-  report.push('-'.repeat(40));
-  if (analysis.highValueTopics.length > 0) {
-    analysis.highValueTopics.forEach(item => {
-      report.push(`• ${item.title} (${item.hot || '未知'})`);
-    });
-  } else {
-    report.push('今日热搜暂无相关选题');
-  }
-  report.push('');
-
-  report.push('【社会现象/家庭选题】');
-  report.push('-'.repeat(40));
-  if (analysis.socialTopics.length > 0) {
-    analysis.socialTopics.forEach(item => {
-      report.push(`• ${item.title} (${item.hot || '未知'})`);
-    });
-  } else {
-    report.push('今日热搜暂无相关选题');
-  }
-  report.push('');
-
-  report.push('【有解读价值的新闻】');
-  report.push('-'.repeat(40));
-  if (analysis.newsTopics.length > 0) {
-    analysis.newsTopics.forEach(item => {
-      report.push(`• ${item.title} (${item.hot || '未知'})`);
-    });
-  } else {
-    report.push('今日热搜暂无相关选题');
-  }
-  report.push('');
-
-  report.push('【微博热搜榜单】（已过滤娱乐八卦）');
-  report.push('-'.repeat(40));
-  const filteredHotList = hotList.filter(item => {
-    const excludeKeywords = ['明星', '剧集', '电影', '综艺', '演出', '演唱会'];
-    return !excludeKeywords.some(k => item.title.includes(k));
-  });
-  filteredHotList.slice(0, 30).forEach(item => {
-    report.push(`${item.rank}. ${item.title} ${item.hot ? `(${item.hot})` : ''}`);
-  });
-  report.push('');
-
-  // 轮换备选选题（大幅扩充）
-  const psychologyPool = [
-    // 基础认知类
-    '习得性无助：客户"放弃抵抗"的背后，如何帮他重建信心？',
-    '锚定效应：报价技巧——让客户觉得"划算"的心理学',
-    '确认偏误：客户只看支持自己观点的信息，如何破局？',
-    '沉没成本：客户"不舍得"退掉不好的产品怎么办？',
-    '认知失调：客户买了之后为什么会有"后悔感"？',
-    '乐观偏差：客户为什么觉得"坏事不会发生在自己身上"？',
-    // 决策影响类
-    '互惠原理：为什么"先付出"能换来信任？',
-    '社会认同：客户为什么更容易相信"别人也买了"？',
-    '权威效应：如何用专业身份建立信任？',
-    '稀缺性原理：为什么"限时"能推动决策？',
-    '后悔预期：客户为什么迟迟不签单？',
-    '选择悖论：给客户太多选择，反而让他不敢决定？',
-    // 记忆印象类
-    '峰终定律：客户对服务的印象，取决于"峰值"和"终点"',
-    '首因效应：第一次见面，如何让客户记住你？',
-    '近因效应：最后一次沟通，决定了客户的印象',
-    '自我参照效应：为什么客户更关心"跟我有关"的事？',
-    '闪光灯记忆：关键时刻，客户会记得什么？',
-    // 思维习惯类
-    '启发式判断：客户为什么凭"直觉"做决定？',
-    '心理账户：客户为什么对不同钱有不同态度？',
-    '参照点效应：客户的"心理价位"从哪来？',
-    '禀赋效应：客户为什么觉得自己的东西更值钱？',
-    '现状偏见：客户为什么不愿意改变现状？',
-    // 情绪心理类
-    '镜像神经元：同理心是天赋还是可以练习的能力？',
-    '情绪传染：你的情绪，如何影响客户的决定？',
-    '恐惧 appeals：如何适度使用"恐惧"推动决策？',
-    '希望效应：为什么"希望"能改变客户的行为？',
-    '羞耻心理：客户为什么不愿意承认自己的问题？',
-    // 关系心理类
-    '喜欢原则：客户为什么会"喜欢"你？',
-    '相似效应：为什么"相似"能拉近关系？',
-    '接触效应：多见面，客户会更信任你吗？',
-    '关联效应：客户会把你和什么联系起来？',
-    // 动机心理类
-    '自我效能感：客户相信自己能做到吗？',
-    '目标梯度效应：离目标越近，客户越有动力？',
-    '反馈效应：及时反馈，如何推动客户行动？',
-    '承诺一致性：客户说出的话，会变成行动吗？',
-    // 风险心理类
-    '风险感知：客户眼中的风险，和你不一样？',
-    '概率忽视：客户为什么忽略小概率大风险？',
-    '控制错觉：客户为什么觉得自己能掌控风险？',
-    '预防动机 vs 促进动机：不同客户需要不同沟通方式？',
-    // 熵增定律
-    '熵增定律：为什么客户的生活越来越乱，保障越来越重要？'
-  ];
-
-  const socialPool = [
-    // 家庭结构变化
-    '老龄化焦虑：如何和客户聊"养老"而不让他抗拒？',
-    '中年危机：40岁客户的真实担忧是什么？',
-    '教育焦虑：父母为孩子买保险背后的心理',
-    '二孩家庭：多子女家庭的保障优先级怎么排？',
-    '离婚率上升：婚姻变动后的保障如何调整？',
-    '独生子女困境：一个人的养老压力有多大？',
-    '空巢老人：子女不在身边，保障如何规划？',
-    // 经济压力类
-    '财务焦虑：中产家庭的隐形压力',
-    '房贷焦虑：房子买了，保障缺口在哪？',
-    '职场焦虑：不稳定工作带来的保障需求',
-    '创业焦虑：创业者没有社保，怎么办？',
-    '降薪焦虑：收入下降后保障怎么调整？',
-    // 健康焦虑类
-    '健康焦虑：体检报告引发的保险意识',
-    '医疗焦虑：一场病要花多少钱？',
-    '康复焦虑：生病后还能买保险吗？',
-    '遗传焦虑：家族病史客户如何规划？',
-    // 人生阶段类
-    '婚姻焦虑：婚前保障规划怎么聊？',
-    '育儿焦虑：新手父母的安全感需求',
-    '升学焦虑：孩子教育金怎么准备？',
-    '留学焦虑：送孩子出国，保障怎么配？',
-    '退休焦虑：60岁还能买什么保险？',
-    // 代际关系类
-    '代际养老：独生子女的养老困境',
-    '父母养老：如何帮父母做养老规划？',
-    '子女保障：如何给孩子做长期规划？',
-    '家庭责任：一家之主的保障缺口在哪？',
-    // 社会趋势类
-    '延迟退休：退休延迟对保障规划的影响',
-    '医保改革：医保变化后需要什么补充？',
-    '消费降级：客户花钱更谨慎，怎么聊保障？'
-  ];
-
-  const careerPool = [
-    // 基础能力类
-    '复盘能力：如何从每次面谈中学到东西？',
-    '抗挫折力：业绩低谷时如何调整心态？',
-    '时间管理：高效顾问的一天怎么安排？',
-    '学习曲线：新顾问如何快速成长？',
-    '专注力：如何在一个领域深耕？',
-    '执行力：想法到行动的距离怎么缩短？',
-    // 沟通能力类
-    '提问能力：好问题比好答案更重要',
-    '倾听能力：真正听见客户说什么',
-    '故事力：如何用故事打动客户？',
-    '谈判能力：如何在僵局中找到突破口？',
-    '说服力：如何让客户从"考虑"到"决定"？',
-    '异议处理：客户说"太贵"怎么回应？',
-    // 关系经营类
-    '人脉经营：转介绍从哪里来？',
-    '客户维护：签单后如何保持联系？',
-    '信任建立：客户为什么不信任你？',
-    '第一印象：见面前客户已经在判断你？',
-    // 自我成长类
-    '自我激励：如何保持长期热情？',
-    '心态调整：被拒绝后如何快速恢复？',
-    '目标设定：如何设定可达成的业绩目标？',
-    '习惯养成：哪些习惯能带来持续业绩？',
-    // 专业提升类
-    '产品理解：如何真正懂一个产品？',
-    '需求分析：如何发现客户的真实需求？',
-    '方案设计：如何设计让客户满意的方案？',
-    '理赔知识：如何用理赔案例建立信任？',
-    // 团队协作类
-    '团队协作：如何和团队一起成长？',
-    '师徒关系：如何找到好的带路人？',
-    '分享精神：如何分享而不失去客户？'
-  ];
-
+function generateReport() {
   const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-  const psyStart = (dayOfYear * 4) % psychologyPool.length;
-  const socialStart = (dayOfYear * 3) % socialPool.length;
-  const careerStart = (dayOfYear * 3) % careerPool.length;
+
+  // 轮换推荐
+  const psyStart = (dayOfYear * 5) % psychologyPool.length;
+  const socialStart = (dayOfYear * 4) % socialPool.length;
+  const careerStart = (dayOfYear * 4) % careerPool.length;
 
   const todayPsychology = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     todayPsychology.push(psychologyPool[(psyStart + i) % psychologyPool.length]);
   }
+
   const todaySocial = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     todaySocial.push(socialPool[(socialStart + i) % socialPool.length]);
   }
+
   const todayCareer = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     todayCareer.push(careerPool[(careerStart + i) % careerPool.length]);
   }
 
+  const report = [];
+
+  report.push('='.repeat(60));
+  report.push(`高研新知每日选题推荐 - ${dateStr}`);
+  report.push('='.repeat(60));
   report.push('');
-  report.push('【备选选题库】（尚未写过，每天轮换推荐）');
+
+  report.push('【今日心理学选题推荐】');
   report.push('-'.repeat(40));
-  report.push('');
-  report.push(`>>> 今日心理学选题推荐（第${Math.ceil(dayOfYear / 5) + 1}轮）：`);
-  report.push('');
   todayPsychology.forEach(item => report.push(`• ${item}`));
   report.push('');
-  report.push('>>> 今日社会现象推荐：');
-  report.push('');
+
+  report.push('【今日社会现象选题推荐】');
+  report.push('-'.repeat(40));
   todaySocial.forEach(item => report.push(`• ${item}`));
   report.push('');
-  report.push('>>> 今日职业成长推荐：');
-  report.push('');
+
+  report.push('【今日职业成长选题推荐】');
+  report.push('-'.repeat(40));
   todayCareer.forEach(item => report.push(`• ${item}`));
   report.push('');
-  report.push('>>> 已写过的选题（勿重复）：');
-  report.push('');
+
+  report.push('【已写过的选题（勿重复）】');
+  report.push('-'.repeat(40));
   report.push('• 同理心/共情、情感账户、心理投射、乐观偏差');
   report.push('• 破窗效应、鸟笼效应、巴纳姆效应、损失厌恶、框架效应');
   report.push('• 独居经济、孤独经济、数字游民、财务斩杀线');
@@ -415,31 +255,13 @@ function generateReport(hotList, analysis) {
   report.push('• 选择能力、沟通境界、输出力、张雪峰事件');
   report.push('');
 
-  report.push('='.repeat(60));
-  report.push('报告生成时间: ' + today.toLocaleString('zh-CN'));
-  report.push('='.repeat(60));
+  report.push('【选题库统计】');
+  report.push('-'.repeat(40));
+  report.push(`• 心理学选题池：${psychologyPool.length} 个（轮换周期：约 ${Math.ceil(psychologyPool.length / 5)} 天）`);
+  report.push(`• 社会现象选题池：${socialPool.length} 个（轮换周期：约 ${Math.ceil(socialPool.length / 4)} 天）`);
+  report.push(`• 职业成长选题池：${careerPool.length} 个（轮换周期：约 ${Math.ceil(careerPool.length / 4)} 天）`);
+  report.push('');
 
-  return report.join('\n');
-}
-
-function generateFailureReport(error) {
-  const report = [];
-
-  report.push('='.repeat(60));
-  report.push(`高研新知每日选题报告 - ${dateStr}`);
-  report.push('='.repeat(60));
-  report.push('');
-  report.push('【执行状态】❌ 失败');
-  report.push('');
-  report.push('【失败原因】');
-  report.push(error.message);
-  report.push('');
-  report.push('【错误详情】');
-  report.push(`错误类型: ${error.name}`);
-  report.push(`错误代码: ${error.code || '无'}`);
-  report.push('');
-  report.push('【备选选题库】建议使用备选选题库中的选题');
-  report.push('');
   report.push('='.repeat(60));
   report.push('报告生成时间: ' + today.toLocaleString('zh-CN'));
   report.push('='.repeat(60));
@@ -448,54 +270,14 @@ function generateFailureReport(error) {
 }
 
 async function main() {
-  try {
-    console.log(`开始抓取 ${dateStr} 的选题数据...`);
-    console.log('启动浏览器...');
+  console.log(`生成 ${dateStr} 的选题报告...`);
 
-    const hotList = await scrapeWeiboHot();
+  const report = generateReport();
+  fs.writeFileSync(filePath, report, 'utf8');
 
-    if (hotList.length > 0) {
-      console.log(`抓取到 ${hotList.length} 条热搜`);
-
-      const analysis = analyzeTopicValue(hotList);
-      const report = generateReport(hotList, analysis);
-
-      fs.writeFileSync(filePath, report, 'utf8');
-      console.log(`\n报告已保存到: ${filePath}`);
-
-      console.log('\n' + '='.repeat(40));
-      console.log('今日推荐选题：');
-      console.log('-'.repeat(40));
-      analysis.recommended.forEach((item, i) => {
-        console.log(`${i + 1}. ${item.title} (${item.hot || '未知'})`);
-      });
-      if (analysis.recommended.length === 0) {
-        console.log('建议使用备选选题库中的选题');
-      }
-
-    } else {
-      console.log('抓取失败，未获取到热搜数据');
-
-      const report = generateReport([], {
-        hotTopics: [],
-        highValueTopics: [],
-        socialTopics: [],
-        newsTopics: [],
-        recommended: []
-      });
-      fs.writeFileSync(filePath, report, 'utf8');
-      console.log(`\n备选选题报告已保存到: ${filePath}`);
-    }
-
-  } catch (error) {
-    console.error('执行失败:', error.message);
-
-    const failFilePath = path.join(saveDir, `选题-${dateStr}-失败.txt`);
-    const failReport = generateFailureReport(error);
-
-    fs.writeFileSync(failFilePath, failReport, 'utf8');
-    console.log(`\n失败报告已保存到: ${failFilePath}`);
-  }
+  console.log(`\n报告已保存到: ${filePath}`);
+  console.log('\n' + '='.repeat(40));
+  console.log('今日选题推荐已生成！');
 }
 
 main();
