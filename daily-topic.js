@@ -204,23 +204,23 @@ const careerPool = [
 function generateReport() {
   const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
 
-  // 轮换推荐
-  const psyStart = (dayOfYear * 5) % psychologyPool.length;
-  const socialStart = (dayOfYear * 4) % socialPool.length;
-  const careerStart = (dayOfYear * 4) % careerPool.length;
+  // 轮换推荐（每项增加5个）
+  const psyStart = (dayOfYear * 10) % psychologyPool.length;
+  const socialStart = (dayOfYear * 9) % socialPool.length;
+  const careerStart = (dayOfYear * 9) % careerPool.length;
 
   const todayPsychology = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 10; i++) {
     todayPsychology.push(psychologyPool[(psyStart + i) % psychologyPool.length]);
   }
 
   const todaySocial = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 9; i++) {
     todaySocial.push(socialPool[(socialStart + i) % socialPool.length]);
   }
 
   const todayCareer = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 9; i++) {
     todayCareer.push(careerPool[(careerStart + i) % careerPool.length]);
   }
 
@@ -257,9 +257,9 @@ function generateReport() {
 
   report.push('【选题库统计】');
   report.push('-'.repeat(40));
-  report.push(`• 心理学选题池：${psychologyPool.length} 个（轮换周期：约 ${Math.ceil(psychologyPool.length / 5)} 天）`);
-  report.push(`• 社会现象选题池：${socialPool.length} 个（轮换周期：约 ${Math.ceil(socialPool.length / 4)} 天）`);
-  report.push(`• 职业成长选题池：${careerPool.length} 个（轮换周期：约 ${Math.ceil(careerPool.length / 4)} 天）`);
+  report.push(`• 心理学选题池：${psychologyPool.length} 个（轮换周期：约 ${Math.ceil(psychologyPool.length / 10)} 天）`);
+  report.push(`• 社会现象选题池：${socialPool.length} 个（轮换周期：约 ${Math.ceil(socialPool.length / 9)} 天）`);
+  report.push(`• 职业成长选题池：${careerPool.length} 个（轮换周期：约 ${Math.ceil(careerPool.length / 9)} 天）`);
   report.push('');
 
   report.push('='.repeat(60));
